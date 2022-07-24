@@ -26,11 +26,20 @@ inline void EXPECT_EQ_INT(int expect, int actual) {
 static void test_parse_null() {
 	CJsonValue v;
 	v.type = ATOM_TRUE;
+
+	EXPECT_EQ_INT(PARSE_OK, parse(&v, "null"));
+	//EXPECT_EQ_INT(ATOM_TRUE, get_type(&v));
+}
+
+static void test_parse_true() {
+	CJsonValue v;
+	v.type = ATOM_TRUE;
 	EXPECT_EQ_INT(ATOM_TRUE, get_type(&v));
-	EXPECT_EQ_INT(PARSE_OK, parse(&v, "null  X"));
+	EXPECT_EQ_INT(PARSE_OK, parse(&v, "true"));
 }
 static void test_parse() {
 	test_parse_null();
+	test_parse_true();
 }
 int main() {
 	test_parse();
