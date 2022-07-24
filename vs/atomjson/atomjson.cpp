@@ -72,4 +72,9 @@ namespace atom {
 	data_type get_type(const CJsonValue* v) {
 		return v->type;
 	}
+
+	double get_number(const CJsonValue* v){
+		assert(v->type == ATOM_NUMBER);
+		return v->n;
+	}
 }

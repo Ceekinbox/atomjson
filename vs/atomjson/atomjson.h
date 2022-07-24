@@ -11,7 +11,7 @@
 #pragma once
 #ifndef ATOMJSON_H__
 #define ATOMJSON_H__
-
+#include <assert.h>
 #endif /* LEPTJSON_H__ */
 
 namespace atom {
@@ -29,6 +29,7 @@ namespace atom {
 	{
 	public:
 		data_type type;
+		double n;
 	};
 
 	int parse(CJsonValue *v, const char* json);
@@ -41,6 +42,7 @@ namespace atom {
 	};
 	data_type get_type(const CJsonValue* v);
 
+	double get_number(const CJsonValue* v); 
 }
 
 
