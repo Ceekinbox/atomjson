@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30523.141
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "atomjson_test", "atomjson_test.vcxproj", "{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}.Debug|x64.ActiveCfg = Debug|x64
+		{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}.Debug|x64.Build.0 = Debug|x64
+		{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}.Debug|x86.ActiveCfg = Debug|Win32
+		{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}.Debug|x86.Build.0 = Debug|Win32
+		{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}.Release|x64.ActiveCfg = Release|x64
+		{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}.Release|x64.Build.0 = Release|x64
+		{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}.Release|x86.ActiveCfg = Release|Win32
+		{A4478BEC-6DC9-470C-9EE9-5B50D884AA77}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {C3AD025F-6EC7-4D01-B87A-397370847D27}
+	EndGlobalSection
+EndGlobal
