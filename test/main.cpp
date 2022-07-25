@@ -22,11 +22,17 @@ static int test_pass = 0;
 			main_ret = 1;}\
 	}while (0);
 
-#define EXPECT_EQ_INT(expect,actual)\
-	do{EXPECT_EQ_BASE(expect == actual, expect, actual, "%d");\
-	}while(0);
+#define EXPECT_EQ_INT(expect,actual)do{EXPECT_EQ_BASE(expect == actual, expect, actual, "%d");}while(0);
 
 #define EXPECT_EQ_DOUBLE(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%.17g")
+
+#define TEST_ERROR(error, json)\
+    do {\
+        CJsonValue v;\
+        v.type = ATOM_FALSE;\
+        EXPECT_EQ_INT(error, parse(&v, json));\
+        EXPECT_EQ_INT(ATOM_NULL, get_type(&v));\
+    } while(0)
 
 #define TEST_NUMBER(expect,json)\
 	do{\
@@ -39,9 +45,8 @@ static int test_pass = 0;
 static void test_parse_null() {
 	CJsonValue v;
 	v.type = ATOM_TRUE;
-
+	EXPECT_EQ_INT(ATOM_TRUE, get_type(&v));
 	EXPECT_EQ_INT(PARSE_OK, parse(&v, "null"));
-	//EXPECT_EQ_INT(ATOM_TRUE, get_type(&v));
 }
 
 static void test_parse_true() {
@@ -49,6 +54,13 @@ static void test_parse_true() {
 	v.type = ATOM_TRUE;
 	EXPECT_EQ_INT(ATOM_TRUE, get_type(&v));
 	EXPECT_EQ_INT(PARSE_OK, parse(&v, "true"));
+}
+
+static void test_parse_false() {
+	CJsonValue v;
+	v.type = ATOM_FALSE;
+	EXPECT_EQ_INT(ATOM_FALSE, get_type(&v));
+	EXPECT_EQ_INT(PARSE_OK, parse(&v, "false"));
 }
 
 static void test_parse_number() {
@@ -74,15 +86,34 @@ static void test_parse_number() {
 }
 
 static void test_parse_invalid_value() {
+	TEST_ERROR(PARSE_INVALID_VALUE, "+0");
+	TEST_ERROR(PARSE_INVALID_VALUE, "+1");
+	TEST_ERROR(PARSE_INVALID_VALUE, ".123"); /* at least one digit before '.' */
+	TEST_ERROR(PARSE_INVALID_VALUE, "1.");   /* at least one digit after '.' */
+	TEST_ERROR(PARSE_INVALID_VALUE, "INF");
+	TEST_ERROR(PARSE_INVALID_VALUE, "inf");
+	TEST_ERROR(PARSE_INVALID_VALUE, "NAN");
+	TEST_ERROR(PARSE_INVALID_VALUE, "nan");
+}
 
+static void test_error() {
+	TEST_ERROR(PARSE_INVALID_VALUE, "abc");
+	TEST_ERROR(PARSE_INVALID_VALUE, " abc ");
+	TEST_ERROR(PARSE_INVALID_VALUE, "abc ");
+	TEST_ERROR(PARSE_INVALID_VALUE, "true ");
+	TEST_ERROR(PARSE_OK, "true ");
 }
 static void test_parse() {
-	//test_parse_null();
-	//test_parse_true();
-	test_parse_number();
+	test_parse_null();
+	test_parse_true();
+	test_parse_false();
+	test_error();
+	//test_parse_number();
 }
 int main() {
+#if 1
 	test_parse();
 	printf("%d/%d (%3.2f%%) passed\n", test_pass, test_count, test_pass * 100.0 / test_count);
 	return main_ret;
+#endif
 }

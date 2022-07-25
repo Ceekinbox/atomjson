@@ -38,7 +38,8 @@ namespace atom {
 		PARSE_OK = 0,
 		PARSE_EXPECT_VALUE,
 		PARSE_INVALID_VALUE,
-		PARSE_ROOT_NOT_SINGULAR
+		PARSE_ROOT_NOT_SINGULAR,
+		PARSE_NUMBER_TOO_BIG
 	};
 	data_type get_type(const CJsonValue* v);
 
