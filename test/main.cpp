@@ -22,44 +22,58 @@ static int test_pass = 0;
 			main_ret = 1;}\
 	}while (0);
 
-#define EXPECT_EQ_INT(expect,actual)do{EXPECT_EQ_BASE(expect == actual, expect, actual, "%d");}while(0);
+#define EXPECT_EQ_INT(expect,actual)do{EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%d");}while(0);
 
 #define EXPECT_EQ_DOUBLE(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%.17g")
+
+#define EXPECT_EQ_STRING(expect, actual, alength) \
+    EXPECT_EQ_BASE(sizeof(expect) - 1 == (alength) && memcmp(expect, actual, alength) == 0, expect, actual, "%s")
+#define EXPECT_EQ_TRUE(actual) EXPECT_EQ_BASE((actual) == true,true,actual,"%d")
+#define EXPECT_EQ_FALSE(actual) EXPECT_EQ_BASE((actual) == false,false,actual,"%d")
 
 #define TEST_ERROR(error, json)\
     do {\
         CJsonValue v;\
         v.type = ATOM_FALSE;\
         EXPECT_EQ_INT(error, parse(&v, json));\
-        EXPECT_EQ_INT(ATOM_NULL, get_type(&v));\
+        EXPECT_EQ_INT(ATOM_NULL, v.get_type());\
     } while(0)
 
 #define TEST_NUMBER(expect,json)\
 	do{\
 		CJsonValue v;\
 		EXPECT_EQ_INT(PARSE_OK,parse(&v,json));\
-		EXPECT_EQ_INT(ATOM_NUMBER,get_type(&v));\
-		EXPECT_EQ_DOUBLE(expect,get_number(&v));\
+		EXPECT_EQ_INT(ATOM_NUMBER,v.get_type());\
+		EXPECT_EQ_DOUBLE(expect,v.get_number());\
 	}while(0)
 
+#define TEST_STRING(expect,json)\
+	do{\
+		CJsonValue v;\
+		v._init();\
+		EXPECT_EQ_INT(PARSE_OK,parse(&v,json));\
+		EXPECT_EQ_INT(ATOM_STRING, v.get_type());\
+		EXPECT_EQ_STRING(expect,v.get_string(),v.get_string_length());\
+		v._free();\
+	} while(0)
 static void test_parse_null() {
 	CJsonValue v;
 	v.type = ATOM_TRUE;
-	EXPECT_EQ_INT(ATOM_TRUE, get_type(&v));
+	EXPECT_EQ_INT(ATOM_TRUE, v.get_type());
 	EXPECT_EQ_INT(PARSE_OK, parse(&v, "null"));
 }
 
 static void test_parse_true() {
 	CJsonValue v;
 	v.type = ATOM_TRUE;
-	EXPECT_EQ_INT(ATOM_TRUE, get_type(&v));
+	EXPECT_EQ_INT(ATOM_TRUE, v.get_type());
 	EXPECT_EQ_INT(PARSE_OK, parse(&v, "true"));
 }
 
 static void test_parse_false() {
 	CJsonValue v;
 	v.type = ATOM_FALSE;
-	EXPECT_EQ_INT(ATOM_FALSE, get_type(&v));
+	EXPECT_EQ_INT(ATOM_FALSE, v.get_type());
 	EXPECT_EQ_INT(PARSE_OK, parse(&v, "false"));
 }
 
@@ -96,18 +110,80 @@ static void test_parse_invalid_value() {
 	TEST_ERROR(PARSE_INVALID_VALUE, "nan");
 }
 
+static void test_parse_string() {
+	TEST_STRING("", "\"\"");
+	TEST_STRING("Hello", "\"Hello\"");
+	TEST_STRING("a","\"a\"");
+#if 1
+	TEST_STRING("Hello\nWorld", "\"Hello\\nWorld\"");
+	TEST_STRING("\" \\ / \b \f \n \r \t", "\"\\\" \\\\ \\/ \\b \\f \\n \\r \\t\"");
+#endif
+}
 static void test_error() {
 	TEST_ERROR(PARSE_INVALID_VALUE, "abc");
 	TEST_ERROR(PARSE_INVALID_VALUE, " abc ");
 	TEST_ERROR(PARSE_INVALID_VALUE, "abc ");
 	TEST_ERROR(PARSE_INVALID_VALUE, "true ");
-	TEST_ERROR(PARSE_OK, "true ");
 }
+static void test_parse_invalid_string_escape() {
+	TEST_ERROR(PARSE_INVALID_STRING_ESCAPE, "\"\\v\"");
+	TEST_ERROR(PARSE_INVALID_STRING_ESCAPE, "\"\\'\"");
+	TEST_ERROR(PARSE_INVALID_STRING_ESCAPE, "\"\\0\"");
+	TEST_ERROR(PARSE_INVALID_STRING_ESCAPE, "\"\\x12\"");
+}
+
+static void test_parse_invalid_string_char() {
+	TEST_ERROR(PARSE_INVALID_STRING_CHAR, "\"\x01\"");
+	TEST_ERROR(PARSE_INVALID_STRING_CHAR, "\"\x1F\"");
+}
+static void test_access_string() {
+	CJsonValue v;
+	v._init();
+	v.set_string("", 0);
+	EXPECT_EQ_STRING("", v.get_string(), v.get_string_length());
+	v.set_string("Hello", 5);
+	EXPECT_EQ_STRING("Hello", v.get_string(), v.get_string_length());
+	v._free();
+}
+
+static void test_access_boolen_true() {
+	CJsonValue v;
+	v._init();
+	v.set_boolen(true);
+	EXPECT_EQ_TRUE(v.get_boolen());
+	v._free();
+}
+
+static void test_access_boolen_false() {
+	CJsonValue v;
+	v._init();
+	v.set_boolen(false);
+	EXPECT_EQ_FALSE(v.get_boolen());
+	v._free();
+}
+
+static void test_access_number() {
+	CJsonValue v;
+	v._init();
+	v.set_string("a", 1);
+	v.set_number(1234.5);
+	EXPECT_EQ_DOUBLE(1234.5, v.get_number());
+	v._free();
+}
+
 static void test_parse() {
-	test_parse_null();
-	test_parse_true();
-	test_parse_false();
-	test_error();
+	//test_parse_null();
+	//test_parse_true();
+	//test_parse_false();
+	//test_access_string();
+	//test_access_boolen_false();
+	//test_access_boolen_true();
+	//test_access_number();
+	//test_parse_string();
+	//test_parse_invalid_string_escape();
+	test_parse_invalid_string_char();
+
+	//test_error();
 	//test_parse_number();
 }
 int main() {

@@ -3,15 +3,18 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <math.h>  
+#include <cstring>
+
+#ifndef ATOM_PARSE_STACK_INIT_SIZE
+#define ATOM_PARSE_STACK_INIT_SIZE 256
+#endif
 
 #define EXPECT(c,ch) do{ assert(*c->json == (ch));c->json++;}while(0)
 #define ISDIGIT(ch)         ((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch)     ((ch) >= '1' && (ch) <= '9')
 
 namespace atom {
-	typedef struct {
-		const char* json;
-	}_context;
+	
 	
 	//处理空格
 	static void _parse_whitespace(_context* c) {
@@ -20,6 +23,8 @@ namespace atom {
 			p++;
 		c->json = p;
 	}
+
+#if 0
 	//处理null
 	static int _parse_null(_context* c, CJsonValue* v) {
 		EXPECT(c, 'n');
@@ -47,6 +52,9 @@ namespace atom {
 		v->type = ATOM_FALSE;
 		return PARSE_OK;
 	}
+#endif
+
+	//处理true false null
 	static int _parse_literal(_context* c, CJsonValue* v,data_type type,const char* literal) {
 		EXPECT(c, literal[0]);
 		size_t i;
@@ -86,24 +94,79 @@ namespace atom {
 		c->json = p;
 		return PARSE_OK;
 	}
+	//处理字符串
+	void inline PUTC(_context* c, char ch) {
+		*(char*)c->_push(sizeof(char)) = ch;
+	}
+	static int _parse_string(_context* c, CJsonValue* v) {
+		size_t head = c->top;
+		size_t len;
+		const char* p;
+		EXPECT(c, '\"');
+		p = c->json;
+		/**/
+		//v->type = ATOM_STRING;
+		/**/
+		for (;;) {
+			char ch = *p++;
+			switch (ch) {
+			case '\"':
+				len = c->top - head;
+				v->set_string((const char*)c->_pop(len), len);
+				c->json = p;
+				return PARSE_OK;
+			case '\\':
+				switch (*p++) {
+				case '\"': PUTC(c, '\"'); break;
+				case '\\': PUTC(c, '\\'); break;
+				case '/':  PUTC(c, '/');  break;
+				case 'b':  PUTC(c, '\b'); break;
+				case 'f':  PUTC(c, '\f'); break;
+				case 'n':  PUTC(c, '\n'); break;
+				case 'r':  PUTC(c, '\r'); break;
+				case 't':  PUTC(c, '\t'); break;
+				default:
+					c->top = head;
+					return PARSE_INVALID_STRING_ESCAPE;
+				}
+			case '\0':
+				c->top = head;
+				return PARSE_MISS_QUOTATION_MARK;
+			default:
+				if ((unsigned char)ch < 0x20) {
+					c->top = head;
+					return PARSE_INVALID_STRING_CHAR;
+				}
+				PUTC(c, ch);
+			}
+		}
 
-
+	}
 	static int _parse_value(_context* c, CJsonValue* v) {
 		switch (*c->json) {
 		case 'n':	return _parse_literal(c, v,ATOM_NULL,"null");
 		case 'f':	return _parse_literal(c, v,ATOM_FALSE,"false");
 		case 't':	return _parse_literal(c, v,ATOM_TRUE,"true");
+		case '"':	return _parse_string(c,v);
 		case '\0':	return PARSE_EXPECT_VALUE;
 		default:	return _parse_number(c, v);
 		}
 	}
 
+
 	int parse(CJsonValue* v, const char* json) {
 		_context c;
 		int ret;
+		assert(v != nullptr);
 
+		//可以用构造函数初始化
 		c.json = json;
-		v->type = ATOM_NULL;
+		c.stack = nullptr;
+		c.size = 0;
+		c.top = 0;
+		//*****
+
+		v->_init();
 		_parse_whitespace(&c);
 		if ((ret = _parse_value(&c, v)) == PARSE_OK) {
 			_parse_whitespace(&c);
@@ -112,15 +175,87 @@ namespace atom {
 				ret = PARSE_ROOT_NOT_SINGULAR;
 			}
 		}
+
+		assert(c.top == 0);
+		free(c.stack);
+
 		return ret;
 	}
 
-	data_type get_type(const CJsonValue* v) {
-		return v->type;
+	void* _context::_push(size_t size) {
+		void* ret;
+		assert(size > 0);
+		if (top + size >= this->size) {
+			if (this->size == 0) 
+				this->size = ATOM_PARSE_STACK_INIT_SIZE;
+			while (top + size >= this->size)
+				this->size += this->size >> 1;
+			stack = (char*)realloc(stack, this->size);
+		}
+		ret = stack + top;
+		top += size;
+		return ret;
+	}
+	void* _context::_pop(size_t size) {
+		assert(top >= size);
+		return stack + (top -= size);
+	}
+	//在parse函数中释放内存
+	//todo：	1.使用c++ 的 new 和 delete 管理
+	//		2.整理_context类的声明
+
+	data_type CJsonValue::get_type() {return type;}
+
+	double CJsonValue::get_number(){
+		assert(this != nullptr && type == ATOM_NUMBER);
+		return n;
+	}
+	void CJsonValue::set_number(double n) {
+		_free();
+		type = ATOM_NUMBER;
+		this->n = n;
 	}
 
-	double get_number(const CJsonValue* v){
-		assert(v->type == ATOM_NUMBER);
-		return v->n;
+	void CJsonValue::set_string(const char* s, size_t len) {
+		assert(s != nullptr || len == 0);
+		_free();
+		this->s.s = (char*)malloc(len + 1);
+		memcpy(this->s.s, s, len);
+		this->s.s[len] = '\0';
+		this->s.len = len;
+		type = ATOM_STRING;
 	}
+	const char* CJsonValue::get_string() {
+		assert(this != nullptr && type == ATOM_STRING);
+		return s.s;
+	}
+
+	size_t CJsonValue::get_string_length() {
+		assert(this != nullptr && type == ATOM_STRING);
+		return s.len;
+	}
+
+	bool CJsonValue::get_boolen() {
+		assert(this != nullptr && (type == ATOM_TRUE || type == ATOM_FALSE));
+		if (type == ATOM_TRUE)return true;
+		else return false;
+	}
+	void CJsonValue::set_boolen(bool b) {
+		_free();
+		if (b) type = ATOM_TRUE;
+		else type = ATOM_FALSE;
+	}
+
+	void inline CJsonValue::_free() {
+		assert(this != nullptr);
+		if (type == ATOM_STRING)
+			free(s.s);
+		type = ATOM_NULL;
+	}
+
+	void inline CJsonValue::_init() {
+		type = ATOM_NULL;
+	}
+
+
 }
