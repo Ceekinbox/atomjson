@@ -25,6 +25,7 @@ static int test_pass = 0;
 #define EXPECT_EQ_INT(expect,actual)\
 	do{EXPECT_EQ_BASE(expect == actual, expect, actual, "%d");\
 	}while(0);
+
 #define EXPECT_EQ_DOUBLE(expect, actual) EXPECT_EQ_BASE((expect) == (actual), expect, actual, "%.17g")
 
 #define TEST_NUMBER(expect,json)\
@@ -49,13 +50,14 @@ static void test_parse_true() {
 	EXPECT_EQ_INT(ATOM_TRUE, get_type(&v));
 	EXPECT_EQ_INT(PARSE_OK, parse(&v, "true"));
 }
+
 static void test_parse_number() {
 	TEST_NUMBER(0.0, "0");
 	TEST_NUMBER(0.0, "-0");
 	TEST_NUMBER(0.0, "-0.0");
 	TEST_NUMBER(1.0, "1");
 	TEST_NUMBER(-1.0, "-1");
-	TEST_NUMBER(1.5, "1.5");
+	TEST_NUMBER(1.5, "1.5");                                                                                                                                                                                                                                                                                                                                                                                                                                        
 	TEST_NUMBER(-1.5, "-1.5");
 	TEST_NUMBER(3.1416, "3.1416");
 	TEST_NUMBER(1E10, "1E10");
@@ -71,9 +73,13 @@ static void test_parse_number() {
 	TEST_NUMBER(0.0, "1e-10000"); /* must underflow */
 }
 
+static void test_parse_invalid_value() {
+
+}
 static void test_parse() {
-	test_parse_null();
-	test_parse_true();
+	//test_parse_null();
+	//test_parse_true();
+	test_parse_number();
 }
 int main() {
 	test_parse();

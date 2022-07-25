@@ -1,5 +1,6 @@
 #include "atomjson.h"
 #include <assert.h>
+#include <stdlib.h>
 
 #define EXPECT(c,ch) { assert(*c->json == (ch));c->json++;}
 namespace atom {
@@ -42,6 +43,17 @@ namespace atom {
 		v->type = ATOM_FALSE;
 		return PARSE_OK;
 	}
+	//´¦ÀíÊý×Ö
+	static int _parse_number(_context* c, CJsonValue* v) {
+		char* end;
+		v->n = strtod(c->json, &end);
+		if (c->json == end) {
+			return PARSE_INVALID_VALUE;
+		}
+		c->json = end;
+		v->type = ATOM_NUMBER;
+		return PARSE_OK;
+	}
 
 	static int _parse_value(_context* c, CJsonValue* v) {
 		switch (*c->json) {
@@ -49,7 +61,7 @@ namespace atom {
 		case 'f':	return _parse_false(c, v);
 		case 't':	return _parse_true(c, v);
 		case '\0':	return PARSE_EXPECT_VALUE;
-		default:	return PARSE_INVALID_VALUE;
+		default:	return _parse_number(c, v);
 		}
 	}
 
@@ -63,8 +75,10 @@ namespace atom {
 		_parse_whitespace(&c);
 		if ((ret = _parse_value(&c, v)) == PARSE_OK) {
 			_parse_whitespace(&c);
-			if (*c.json != '\0')
+			if (*c.json != '\0') {
+				v->type = ATOM_NULL;
 				ret = PARSE_ROOT_NOT_SINGULAR;
+			}
 		}
 		return ret;
 	}
