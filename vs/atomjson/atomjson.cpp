@@ -5,6 +5,7 @@
 #include <math.h>  
 #include <cstring>
 
+
 #ifndef ATOM_PARSE_STACK_INIT_SIZE
 #define ATOM_PARSE_STACK_INIT_SIZE 256
 #endif

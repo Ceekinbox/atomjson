@@ -5,6 +5,7 @@
 #include <assert.h>
 #endif /* LEPTJSON_H__ */
 
+
 namespace atom {
 	//七种枚举类型
 	typedef enum{
