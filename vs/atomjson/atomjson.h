@@ -12,9 +12,7 @@ namespace atom {
 		ATOM_NUMBER, ATOM_STRING, ATOM_ARRAY, ATOM_OBJECT
 	} data_type;
 
-	enum {
-
-	};
+	struct member;
 	//json的数据结构
 	class CJsonValue
 	{
@@ -22,6 +20,7 @@ namespace atom {
 		union {
 			struct {size_t len;char* s;}s;
 			struct {CJsonValue* e ; size_t size; }a;
+			struct {member* m ; size_t size; }o;
 			double n;
 		};
 		
@@ -40,13 +39,22 @@ namespace atom {
 		size_t get_array_size();
 		CJsonValue get_array_element(int index);
 
+		size_t get_object_size();
+		const char* get_object_key(size_t index);
+		size_t get_object_key_length(size_t index);
+		CJsonValue get_object_value(size_t index);
+
 		bool get_boolen();
 		void set_boolen(bool b);
 
 		void _init();
 		void _free();
 	};
-
+	struct member {
+		char* key;
+		size_t keylen;
+		CJsonValue v;
+	};
 	class _context{
 	public:
 		const char* json;
@@ -70,7 +78,10 @@ namespace atom {
 		PARSE_INVALID_STRING_CHAR,
 		PARSE_INVALID_UNICODE_HEX,
 		PARSE_INVALID_UNICODE_SURROGATE,
-		PARSE_MISS_COMMA_OR_SQUARE_BRACKET
+		PARSE_MISS_COMMA_OR_SQUARE_BRACKET,
+		PARSE_MISS_COLON,
+		PARSE_MISS_KEY,
+		PARSE_MISS_COMMA_OR_CURLY_BRACKET
 
 	};
 #if 0 data_type get_type(const CJsonValue* v);

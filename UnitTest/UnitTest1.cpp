@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "CppUnitTest.h"
-#include "..\..\vs\atomjson\atomjson.h"
+#include "../vs/atomjson/atomjson.h"
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 #define UNIT_TEST_STRING(expect,json)\

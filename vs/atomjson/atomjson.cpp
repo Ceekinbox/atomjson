@@ -132,22 +132,20 @@ namespace atom {
 			PUTC_UTF(c, 0x80 | (u & 0x3F));
 		}
 	}
-	static int _parse_string(_context* c, CJsonValue* v) {
+
+	static int _parse_string_raw(_context* c, char** str, size_t *len) {
 		size_t head = c->top;
-		size_t len;
 		const char* p;
-		unsigned u,u2;
+		unsigned u, u2;
 		EXPECT(c, '\"');
 		p = c->json;
-		/**/
-		//v->type = ATOM_STRING;
-		/**/
+
 		for (;;) {
 			char ch = *p++;
 			switch (ch) {
 			case '\"':
-				len = c->top - head;
-				v->set_string((const char*)c->_pop(len), len);
+				*len = c->top - head;
+				*str = (char*)c->_pop(*len);
 				c->json = p;
 				return PARSE_OK;
 			case '\\':
@@ -164,15 +162,15 @@ namespace atom {
 					if ((p = _parse_hex4(p, &u)) == nullptr)
 						STRING_ERROR(PARSE_INVALID_UNICODE_HEX);
 					if (u >= 0xD800 && u <= 0xDBFF) {
-						if(*p != '\\')
+						if (*p != '\\')
 							STRING_ERROR(PARSE_INVALID_UNICODE_SURROGATE);
 						p++;
-						if(*p != 'u')
+						if (*p != 'u')
 							STRING_ERROR(PARSE_INVALID_UNICODE_SURROGATE);
 						p++;
-						if((p = _parse_hex4(p, &u2)) == nullptr)
+						if ((p = _parse_hex4(p, &u2)) == nullptr)
 							STRING_ERROR(PARSE_INVALID_UNICODE_HEX);
-						if(u2 < 0xDC00 || u2 > 0xDFFF)
+						if (u2 < 0xDC00 || u2 > 0xDFFF)
 							STRING_ERROR(PARSE_INVALID_UNICODE_SURROGATE);
 						u = 0x10000 + ((u - 0xD800) << 10) + (u2 - 0xDC00);
 					}
@@ -194,8 +192,17 @@ namespace atom {
 				PUTC(c, ch);
 			}
 		}
-
 	}
+
+	static int _parse_string(_context* c, CJsonValue* v) {
+		int ret;
+		char* str;
+		size_t len;
+		if((ret = _parse_string_raw(c,&str,&len)) == PARSE_OK)
+			v->set_string(str, len);
+		return ret;
+	}
+	
 	static int _parse_value(_context* c, CJsonValue* v);
 	//处理array
 	static int _parse_array(_context* c, CJsonValue* v) {
@@ -240,6 +247,76 @@ namespace atom {
 			CJsonValue* p = (CJsonValue*)c->_pop(sizeof(CJsonValue));
 			p->_free();
 		}
+		return ret;
+	}
+	//处理object
+	static int _parse_object(_context* c, CJsonValue* v) {
+		size_t size;
+		member m;
+		int ret;
+		EXPECT(c, '{');
+		_parse_whitespace(c);
+		if (*c->json == '}') {
+			c->json++;
+			v->type = ATOM_OBJECT;
+			v->o.m = 0;
+			v->o.size = 0;
+			return PARSE_OK;
+		}
+		m.key = nullptr;
+		size = 0;
+		m.keylen = 0;
+		for (;;) {
+			if (*c->json == '"') {
+				ret = PARSE_MISS_KEY;
+				break;
+			}
+			/*获取key值*/
+			char* str;
+			m.v._init(); 
+			if ((ret = _parse_string_raw(c,&str,&m.keylen)) != PARSE_OK)
+				break;
+			memcpy(m.key = (char*)malloc(m.keylen+1),str,m.keylen);//
+			m.key[m.keylen] = '\0';
+			/**********/
+			_parse_whitespace(c);
+			if (*c->json != ':') {
+				ret = PARSE_MISS_COLON;
+				break;
+			}
+			c->json++;
+			_parse_whitespace(c);
+			if ((ret = _parse_value(c, &m.v)) != PARSE_OK) 
+				break;
+			memcpy(c->_push(sizeof(member)), &m, sizeof(member));
+			size++;
+			m.key = nullptr;
+			if (*c->json == ',') {
+				c->json++;
+				break;
+			}
+			else if (*c->json == '}') {
+
+				c->json++;
+				v->type = ATOM_OBJECT;
+				v->o.size = size;
+				size = size * sizeof(member);
+				memcpy(v->o.m = (member* )malloc(size), c->_pop(size), size);
+				return PARSE_OK;
+			}
+			else {
+				ret = PARSE_MISS_COMMA_OR_CURLY_BRACKET;
+				break;
+			}
+
+		}
+		free(m.key);
+		for (int i = 0; i < size; i++) {
+			member* m = (member*)c->_pop(sizeof(member));
+			free(m->key);
+			m->v._free();
+		}
+		v->type = ATOM_NULL;
 		return ret;
 	}
 	static int _parse_value(_context* c, CJsonValue* v) {
@@ -327,6 +404,23 @@ namespace atom {
 		this->s.len = len;
 		type = ATOM_STRING;
 	}
+
+	size_t CJsonValue::get_object_size() {
+		assert(this != nullptr && type == ATOM_OBJECT);
+		return o.size;
+	}
+	const char* CJsonValue::get_object_key(size_t index) {
+		assert(this != nullptr && type == ATOM_OBJECT);
+		return o.m[index].key;
+	}
+	size_t CJsonValue::get_object_key_length(size_t index) {
+		assert(this != nullptr && type == ATOM_OBJECT);
+		return o.m[index].keylen;
+	}
+	CJsonValue CJsonValue::get_object_value(size_t index) {
+		assert(this != nullptr && type == ATOM_OBJECT);
+		return o.m[index].v;
+	}
 	const char* CJsonValue::get_string() {
 		assert(this != nullptr && type == ATOM_STRING);
 		return s.s;
@@ -366,6 +460,13 @@ namespace atom {
 			for (i = 0; i < a.size; i++)
 				a.e[i]._free();
 			free(a.e);
+		}
+		else if (type == ATOM_OBJECT) {
+			for (i = 0; i < o.size; i++) {
+				free(o.m[i].key);
+				o.m[i].v._free();
+			}
+			free(o.m);
 		}
 		type = ATOM_NULL;
 	}
