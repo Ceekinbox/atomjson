@@ -13,6 +13,8 @@
 #define ISDIGIT(ch)         ((ch) >= '0' && (ch) <= '9')
 #define ISDIGIT1TO9(ch)     ((ch) >= '1' && (ch) <= '9')
 
+#define STRING_ERROR(ret) do{ c->top = head; return ret; }while(0)
+
 namespace atom {
 	
 	
@@ -20,7 +22,7 @@ namespace atom {
 	static void _parse_whitespace(_context* c) {
 		const char* p = c->json;
 		while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
-			p++;
+ 			p++;
 		c->json = p;
 	}
 
@@ -95,13 +97,46 @@ namespace atom {
 		return PARSE_OK;
 	}
 	//处理字符串
+	//unicode UTF-8
 	void inline PUTC(_context* c, char ch) {
 		*(char*)c->_push(sizeof(char)) = ch;
+	}
+	void inline PUTC_UTF(_context* c, unsigned ch) {
+		*(char*)c->_push(sizeof(char)) = ch;
+	}
+	static const char* _parse_hex4(const char* p, unsigned* u) {
+		char* end;
+		char ch = *p;
+		if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')))
+			return nullptr;
+		*u = strtol(p,&end,16);
+		return end == p + 4 ? end : nullptr;
+	}
+	static void _encode_utf8(_context* c,unsigned u) {
+		if (u <= 0x7F)
+			PUTC_UTF(c, u & 0xFF);
+		else if (u <= 0x7FF) {
+			PUTC_UTF(c, 0xC0 | ((u >> 6) & 0xFF));
+			PUTC_UTF(c, 0x80 | (u & 0x3F));
+		}
+		else if (u <= 0xFFFF) {
+			PUTC_UTF(c, 0xE0 | ((u >> 12) & 0xFF));
+			PUTC_UTF(c, 0x80 | ((u >> 6) & 0x3F));
+			PUTC_UTF(c, 0x80 | (u & 0x3F));
+		}
+		else {
+			assert(u <= 0x10FFFF);
+			PUTC_UTF(c, 0xF0 | ((u >> 18) & 0xFF));
+			PUTC_UTF(c, 0x80 | ((u >> 12) & 0x3F));
+			PUTC_UTF(c, 0x80 | ((u >> 6) & 0x3F));
+			PUTC_UTF(c, 0x80 | (u & 0x3F));
+		}
 	}
 	static int _parse_string(_context* c, CJsonValue* v) {
 		size_t head = c->top;
 		size_t len;
 		const char* p;
+		unsigned u,u2;
 		EXPECT(c, '\"');
 		p = c->json;
 		/**/
@@ -125,10 +160,29 @@ namespace atom {
 				case 'n':  PUTC(c, '\n'); break;
 				case 'r':  PUTC(c, '\r'); break;
 				case 't':  PUTC(c, '\t'); break;
+				case 'u':
+					if ((p = _parse_hex4(p, &u)) == nullptr)
+						STRING_ERROR(PARSE_INVALID_UNICODE_HEX);
+					if (u >= 0xD800 && u <= 0xDBFF) {
+						if(*p != '\\')
+							STRING_ERROR(PARSE_INVALID_UNICODE_SURROGATE);
+						p++;
+						if(*p != 'u')
+							STRING_ERROR(PARSE_INVALID_UNICODE_SURROGATE);
+						p++;
+						if((p = _parse_hex4(p, &u2)) == nullptr)
+							STRING_ERROR(PARSE_INVALID_UNICODE_HEX);
+						if(u2 < 0xDC00 || u2 > 0xDFFF)
+							STRING_ERROR(PARSE_INVALID_UNICODE_SURROGATE);
+						u = 0x10000 + ((u - 0xD800) << 10) + (u2 - 0xDC00);
+					}
+					_encode_utf8(c, u);
+					break;
 				default:
 					c->top = head;
 					return PARSE_INVALID_STRING_ESCAPE;
 				}
+				break;
 			case '\0':
 				c->top = head;
 				return PARSE_MISS_QUOTATION_MARK;
@@ -142,12 +196,59 @@ namespace atom {
 		}
 
 	}
+	static int _parse_value(_context* c, CJsonValue* v);
+	//处理array
+	static int _parse_array(_context* c, CJsonValue* v) {
+		size_t head = c->top;//保存起始点
+		size_t size = 0;
+		int ret;
+		EXPECT(c, '[');
+		_parse_whitespace(c);
+		if (*c->json == ']') {
+			c->json++;
+			v->type = ATOM_ARRAY;
+			v->a.e = nullptr;
+			v->a.size = 0;
+			return PARSE_OK;
+		}
+		for (;;) {
+			CJsonValue element;
+			element._init();
+			if ((ret = _parse_value(c, &element)) != PARSE_OK)
+				break;
+			memcpy(c->_push(sizeof(CJsonValue)),&element,sizeof(CJsonValue));
+			size++;
+			_parse_whitespace(c);
+			if (*c->json == ',') {
+				c->json++;
+				_parse_whitespace(c);
+			}
+			else if (*c->json == ']') {
+				c->json++;
+				v->type = ATOM_ARRAY;
+				v->a.size = size;
+				size = size * sizeof(CJsonValue);
+				memcpy(v->a.e = (CJsonValue*)malloc(size),c->_pop(size),size);
+				return PARSE_OK;
+			}
+			else {
+				ret = PARSE_MISS_COMMA_OR_SQUARE_BRACKET;
+				break;
+			}
+		}
+		for (int i = 0; i < size; i++) {
+			CJsonValue* p = (CJsonValue*)c->_pop(sizeof(CJsonValue));
+			p->_free();
+		}
+		return ret;
+	}
 	static int _parse_value(_context* c, CJsonValue* v) {
 		switch (*c->json) {
 		case 'n':	return _parse_literal(c, v,ATOM_NULL,"null");
 		case 'f':	return _parse_literal(c, v,ATOM_FALSE,"false");
 		case 't':	return _parse_literal(c, v,ATOM_TRUE,"true");
 		case '"':	return _parse_string(c,v);
+		case '[':	return _parse_array(c, v);
 		case '\0':	return PARSE_EXPECT_VALUE;
 		default:	return _parse_number(c, v);
 		}
@@ -204,7 +305,8 @@ namespace atom {
 	//todo：	1.使用c++ 的 new 和 delete 管理
 	//		2.整理_context类的声明
 
-	data_type CJsonValue::get_type() {return type;}
+	data_type CJsonValue::get_type() {
+		return type;}
 
 	double CJsonValue::get_number(){
 		assert(this != nullptr && type == ATOM_NUMBER);
@@ -235,6 +337,15 @@ namespace atom {
 		return s.len;
 	}
 
+	size_t CJsonValue::get_array_size() {
+		assert(this != nullptr && type == ATOM_ARRAY);
+		return a.size;
+	}
+	CJsonValue CJsonValue::get_array_element(int index) {
+		assert(this != nullptr && type == ATOM_ARRAY);
+		assert(index >= 0 && index < a.size);
+		return a.e[index];
+	}
 	bool CJsonValue::get_boolen() {
 		assert(this != nullptr && (type == ATOM_TRUE || type == ATOM_FALSE));
 		if (type == ATOM_TRUE)return true;
@@ -248,8 +359,14 @@ namespace atom {
 
 	void inline CJsonValue::_free() {
 		assert(this != nullptr);
+		int i;
 		if (type == ATOM_STRING)
 			free(s.s);
+		else if (type == ATOM_ARRAY) {
+			for (i = 0; i < a.size; i++)
+				a.e[i]._free();
+			free(a.e);
+		}
 		type = ATOM_NULL;
 	}
 
