@@ -1,13 +1,4 @@
-/****************************************
-#	JSON-text = ws value ws				#
-#	ws = *(%x20 / %x09 / %x0A / %x0D)	#
-#	value = null / false / true			#
-#	null  = "null"						#
-#	false = "false"						#
-#	true  = "true"						#
-#***************************************#
-#   version v0.1						#
-****************************************/
+
 #pragma once
 #ifndef ATOMJSON_H__
 #define ATOMJSON_H__
@@ -30,6 +21,7 @@ namespace atom {
 	public:
 		union {
 			struct {size_t len;char* s;}s;
+			struct {CJsonValue* e ; size_t size; }a;
 			double n;
 		};
 		
@@ -44,6 +36,9 @@ namespace atom {
 		const char* get_string();
 		size_t get_string_length();
 		void set_string(const char* s, size_t len);
+
+		size_t get_array_size();
+		CJsonValue get_array_element(int index);
 
 		bool get_boolen();
 		void set_boolen(bool b);
@@ -72,7 +67,10 @@ namespace atom {
 		PARSE_NUMBER_TOO_BIG,
 		PARSE_MISS_QUOTATION_MARK,
 		PARSE_INVALID_STRING_ESCAPE,
-		PARSE_INVALID_STRING_CHAR
+		PARSE_INVALID_STRING_CHAR,
+		PARSE_INVALID_UNICODE_HEX,
+		PARSE_INVALID_UNICODE_SURROGATE,
+		PARSE_MISS_COMMA_OR_SQUARE_BRACKET
 
 	};
 #if 0 data_type get_type(const CJsonValue* v);
